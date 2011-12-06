@@ -26,8 +26,17 @@ typedef struct world
 	Particle *parts;
 } World;
 
+
+enum measurementType {
+	NOTHING,
+	PAIR_CORRELATION,
+	ENERGIES,
+	PRESSURE
+};
+
 typedef struct config
 {
+	enum measurementType measurement;
 	bool render;
 	int verbose;
 	double boxSize; /* The same for every dimension */
@@ -54,12 +63,8 @@ void stepWorld(void);
 bool sanityCheck(void);
 bool physicsCheck(void);
 void dumpStats(void);
-void dumpPairCorrelation(FILE *stream, int bins, double *buf);
-void dumpPairCorrelationm(FILE *stream, int bins, double *buf);
-void accumulatePairCorrelation(void);
-void dumpAccumulatedPairCorrelation(FILE *stream);
-void sampleMeasurement(void);
-void dumpMeasurement(FILE *stream);
+bool sampleMeasurement(FILE *stream);
+bool dumpMeasurement(FILE *stream);
 
 extern World world;
 extern Config config;

@@ -11,7 +11,7 @@
 #include "system.h"
 #include "render.h"
 
-#define FILENAME "/tmp/data.txt"
+#define DATA_FILE_NAME "/tmp/data.txt"
 
 static void parseArguments(int argc, char **argv);
 static void plotHeader(FILE *stream);
@@ -32,13 +32,23 @@ static void printUsage(void)
 {
 	printf("Usage: main <number of particles> <particle density> [flags]\n");
 	printf("Flags:\n");
+	printf(" -m <c|E|P> Measurement to perform:\n");
+	printf("             c: pair Correlation function\n");
+	printf("             E: Energies: time, total, kinetic, potential\n");
+	printf("             P: Pressure: single value, derived from pair correlation function\n");
+	printf("                NOTE: Use sufficiently large L-J truncation length!\n"); 
+	printf("                      It's reccomended to run with '-l -1', which sets\n"); 
+	printf("                      the L-J truncation radius to half the worldsize\n"); 
+	printf("                      (the 1/2 is needed because of periodic boundary\n");
+	printf("                      conditions on cubic box.)\n"); 
+	printf("             Result gets dumped in "DATA_FILE_NAME"\n"); 
 	printf(" -t <flt>  length of Time steps\n");
 	printf("             default: %f\n", DEF_TIMESTEP);
 	printf(" -T <flt>  Temperature\n");
 	printf("             default: %f (Boltzmann cte = mass = 1)\n", DEF_TEMPERATURE);
 	printf(" -c <flt>  thermal bath Coupling: relaxation time (zero to disable)\n");
 	printf("             default: %d * timestep\n", DEF_COUPLING_TIMESTEP_FACTOR);
-	printf(" -l <flt>  Lennard-Jones truncation Length\n");
+	printf(" -l <flt>  Lennard-Jones truncation Length. Negative value to disable truncation.\n");
 	printf("             default: %f\n", DEF_LJ_TRUNCATION);
 	printf(" -b <num>  number of Boxes per dimension\n");
 	printf("             default: max so that boxsize >= L-J truncation length\n");
@@ -61,8 +71,9 @@ static void parseArguments(int argc, char **argv)
 	int c;
 
 	/* defaults */
-	config.verbose = 0;
-	config.measureSamples = -1; /* loop indefinitely */
+	config.measurement      = NOTHING;
+	config.verbose          = 0;
+	config.measureSamples   = -1; /* loop indefinitely */
 	config.truncateLJ 	= DEF_LJ_TRUNCATION;
 	config.timeStep 	= DEF_TIMESTEP;
 	config.measureInterval  = DEF_MEASUREMENT_INTERVAL;
@@ -75,10 +86,28 @@ static void parseArguments(int argc, char **argv)
 	config.numBox = -1;
 	config.thermostatTau = -1;
 
-	while ((c = getopt(argc, argv, ":t:T:c:l:b:s:i:w:j:rR:v:h")) != -1)
+	while ((c = getopt(argc, argv, ":m:t:T:c:l:b:s:i:w:j:rR:v:h")) != -1)
 	{
 		switch (c)
 		{
+		case 'm':
+			if (optarg[0] == '\0' || optarg[1] != '\0')
+				die("Unknown measurement '%s'. Measurement \n"
+					"type should be one letter only", optarg);
+			switch (optarg[0]) {
+			case 'c':
+				config.measurement = PAIR_CORRELATION;
+				break;
+			case 'E':
+				config.measurement = ENERGIES;
+				break;
+			case 'P':
+				config.measurement = PRESSURE;
+				break;
+			default:
+				die("Unknown measurement type '%s'.\n", optarg);
+			}
+			break;
 		case 't':
 			config.timeStep = atof(optarg);
 			if (config.timeStep <= 0)
@@ -99,9 +128,6 @@ static void parseArguments(int argc, char **argv)
 			break;
 		case 'l':
 			config.truncateLJ = atof(optarg);
-			if (config.truncateLJ <= 0)
-				die("Invalid LJ truncation length %f\n",
-						config.truncateLJ);
 			break;
 		case 'b':
 			config.numBox = atoi(optarg);
@@ -169,11 +195,18 @@ static void parseArguments(int argc, char **argv)
 
 	if (argc < 2) {
 		printUsage();
-		die("Not enough required arguments!\n");
+		die("\nNot enough required arguments!\n");
 	}
 
 	config.numParticles = atoi(argv[0]);
+	if (config.numParticles < 0)
+		die("I can't simulate a negative number of particles!\n");
+	if (config.numParticles < 2)
+		die("The given number of particles would make for a very boring simulation!\n");
+
 	double density = atof(argv[1]);
+	if (density <= 0)
+		die("Invalid density!\n");
 
 	if (config.measureInterval < config.timeStep)
 		die("The interval time between measurements %f is smaller "
@@ -182,12 +215,25 @@ static void parseArguments(int argc, char **argv)
 
 	double worldSize = cbrt(config.numParticles / density);
 
-	if (config.numBox == -1)
+	if (config.truncateLJ < 0) {
+		/* Disable truncation -> no space partitioning */
+		config.numBox = 1;
+		config.truncateLJ = worldSize / 2.0;
+		/* Worldsize/2 is necessary for correct pair correlations. 
+		 * Otherwise you get a 'tail' between ws/2 and ws/sqrt(2), 
+		 * which is an artefact from the periodic boundary 
+		 * conditions in a cubic box! */
+	}
+
+	if (config.numBox == -1) {
 		config.numBox = worldSize / config.truncateLJ;
+		if (config.numBox < 1)
+			config.numBox = 1;
+	}
 
 	config.boxSize = worldSize / config.numBox;
 
-	if (config.boxSize < config.truncateLJ)
+	if (config.boxSize < config.truncateLJ && config.numBox > 1)
 		die("The boxsize (%f) is smaller than the L-J truncation "
 			"radius (%f)!\n", config.boxSize, config.truncateLJ);
 
@@ -196,8 +242,6 @@ static void parseArguments(int argc, char **argv)
 
 	if (config.renderSteps < 0)
 		config.renderSteps = 1 + 10000 / config.numParticles;
-
-	printf("Boxsize: %f\n", config.boxSize);
 }
 
 void die(const char *fmt, ...)
@@ -266,8 +310,8 @@ int main(int argc, char **argv)
 
 		/* Perform the measurements */
 		printf("\nStarting measurement.\n");
-		FILE *outfile = fopen(FILENAME, "w");
-		//plotHeader(outfile);
+		FILE *outstream = fopen(DATA_FILE_NAME, "w");
+		//plotHeader(outstream);
 		double intervalTime = 0;
 		for (long sample = 0; keepGoing && sample < config.measureSamples; sample++) {
 			while (keepGoing && intervalTime <= config.measureInterval) {
@@ -282,20 +326,20 @@ int main(int argc, char **argv)
 			if (!physicsCheck()) {
 				fprintf(stderr, "Something went wrong! Dumping the "
 						"measurement I have till now.\n");
-				dumpMeasurement(outfile);
+				dumpMeasurement(outstream);
 				die("You broke physics!\n");
 			}
 
 			printf("\rMeasured sample %ld/%ld", sample + 1, config.measureSamples);
 			fflush(stdout);
-			sampleMeasurement();
+			keepGoing = sampleMeasurement(outstream);
 			intervalTime -= config.measureInterval;
 		}
 		printf("\n");
 		
-		dumpMeasurement(outfile);
-		//plotFooter(outfile);
-		fclose(outfile);
+		dumpMeasurement(outstream);
+		//plotFooter(outstream);
+		fclose(outstream);
 		//plot();
 	}
 
@@ -326,5 +370,5 @@ static int plot()
 	fclose(stderr);
 #endif
 
-	return system("octave -q --persist "FILENAME);
+	return system("octave -q --persist "DATA_FILE_NAME);
 }

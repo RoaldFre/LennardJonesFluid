@@ -6,30 +6,64 @@
 #include "vmath.h"
 #include "system.h"
 
+static void collideWalls(int ix, int iy, int iz);
+static void reboxParticles(void);
+static Box  *boxFromParticle(const Particle *p);
+static Box  *boxFromIndex(int nx, int ny, int nz);
+static Box  *boxFromNonPeriodicIndex(int nx, int ny, int nz);
+static void addToBox(Particle *p, Box *b);
+static void removeFromBox(Particle *p, Box *from);
+
+static void verlet(void);
+static void thermostat(void);
+static void calculateAcceleration(void);
+static void calculateAccelerationBruteForce(void);
+static void lennardJonesForce(Particle *p1, Particle *p2);
+static Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2); 
+
+static Vec3   momentum(void);
+static double temperature(void);
+static double kineticEnergy(void);
+static double potentialEnergy(void);
+static double potentialEnergyBruteForce(void);
+static void   calculatePairCorrelation(int bins, double *buf);
+static void   addToDistanceBin(Particle *p1, Particle *p2, int bins, double *buf);
+static double pressureFromPairCorrelation(int bins, double *buf, double Temperature);
+
+static void accumulatePairCorrelation(void);
+static void accumulatePressure(void);
+static void accumulateTemperature(void);
+
+static void dumpAccumulatedPairCorrelation(FILE *stream);
+static void dumpAccumulatedPressure(FILE *stream);
+static void dumpEnergies(FILE *stream);
+static void dumpPairCorrelation(FILE *stream, int bins, double *buf);
+
+static double randNorm(void);
+
+static void checkPairCorrelation(int bins, double *buf);
+
+
+
+/* GLOBALS */
+
 World world;
 Config config;
 
-static void lennardJonesForce(Particle *p1, Particle *p2);
-static void collideWalls(int ix, int iy, int iz);
-static void reboxParticles(void);
-static Box *boxFromParticle(const Particle *p);
-static Box *boxFromIndex(int nx, int ny, int nz);
-static Box *boxFromNonPeriodicIndex(int nx, int ny, int nz);
-static void addToBox(Particle *p, Box *b);
-static void removeFromBox(Particle *p, Box *from);
-static void calculateAcceleration(void);
-static void calculateAccelerationBruteForce(void);
-static void verlet(void);
-static double randNorm(void);
-static Vec3 momentum(void);
-static double kineticEnergy(void);
-static double temperature(void);
-static void thermostat(void);
-static double potentialEnergy(void);
-static double potentialEnergyBruteForce(void);
-static void calculatePairCorrelation(int bins, double *buf);
-static void addPairCorrelation(Particle *p1, Particle *p2, int bins, double *buf);
-static Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2); 
+/* Buffer where we accumulate the pair correlation funcion measurements */
+static double *accumPairCorrelationBuffer = NULL;
+
+/* Bins of said buffer */
+static int accumPairCorrelationBins = 100;
+
+/* Amount of measurement samples made. */
+static long samples = 0;
+
+/* Current time in the simulation */
+static double time = 0;
+
+
+
 
 /* UNDER THE BONNET STUFF */
 
@@ -227,8 +261,6 @@ void fillWorld()
 		sub(&ps[i].vel, &avgVel, &ps[i].vel);
 
 	assert(sanityCheck());
-	printf("Initial situation:\n");
-	dumpStats();
 	printf("\n");
 }
 
@@ -532,24 +564,31 @@ void stepWorld(void)
 	assert(sanityCheck());
 	thermostat();
 	assert(sanityCheck());
+	time += config.timeStep;
 }
 
 
 /* PHYSICS MEASUREMENTS */
 
+/* Instantaneous pressure */
 static double pressure(int bins)
 {
-	/* P = rho kB T  -  1/6 rho^2 integral(4*pi*r^3 dphi/dr g(r) dr)
+	double *buf = calloc(bins, sizeof(double));
+	calculatePairCorrelation(bins, buf);
+	double P = pressureFromPairCorrelation(bins, buf, temperature());
+	free(buf);
+	return P;
+}
+
+static double pressureFromPairCorrelation(int bins, double *buf, double Temperature)
+{
+	/* P = rho kB T  -  1/6 rho^2 integral(4*pi*r^2 * r dphi/dr g(r) dr)
 	 * where
 	 * dphi/dr = -24 (2/r^13 - 1/r^7)
 	 * combined, the integral becomes:
 	 * integral(4*pi * (-24)*(2/r^10 - 1/r^4) * g(r) * dr) */
-	double T = temperature();
 	double ws = config.numBox * config.boxSize;
 	double rho = config.numParticles / (ws * ws * ws);
-
-	double *buf = calloc(bins, sizeof(double));
-	calculatePairCorrelation(bins, buf);
 
 	double integral = 0;
 	double dr = config.truncateLJ / bins;
@@ -565,12 +604,37 @@ static double pressure(int bins)
 	/* scale with the correct factors */
 	integral *= 4 * M_PI * (-24) * dr;
 
-	free(buf);
-
-	return rho * (T - rho/6 * integral);
+	return rho * (Temperature - rho/6 * integral);
 }
 
-/* Calculate the discrete pair correlation between r=0 and 
+/* Check for consistency
+ * NOTE: This only makes sense if the LJ-truncation length is sufficiently 
+ * large (at least half the worldsize for periodic boundary conditions). 
+ * This means everything reduces to O(n^2) because there will be no 
+ * partitioning (one big box [or 2x2 boxes]) */
+static void checkPairCorrelation(int bins, double *buf)
+{
+	/* We know:
+	 * integral(rho * g(r) * 4*pi*r^2 dr) = N - 1
+	 * So check if we recover this. */
+
+	double ws = config.numBox * config.boxSize;
+	double rho = config.numParticles / (ws * ws * ws);
+
+	double integral = 0;
+	double dr = config.truncateLJ / bins;
+	for (int i = 0; i < bins; i++) {
+		double r  = config.truncateLJ * (i + 1.0)/bins;
+		integral += r*r * buf[i];
+	}
+	/* scale with the correct factors */
+	integral *= rho * 4 * M_PI * dr;
+
+	printf("Pair correlation integral: %f (num particles: %d)\n",
+			integral, config.numParticles);
+}
+
+/* Calculate the (discrete) pair correlation between r=0 and 
  * r=config.truncateLJ for the given number of bins in the given buffer. */
 static void calculatePairCorrelation(int bins, double *buf)
 {
@@ -590,7 +654,7 @@ static void calculatePairCorrelation(int bins, double *buf)
 			Particle *p1 = &world.parts[i];
 			for (int j = i + 1; j < config.numParticles; j++) {
 				Particle *p2 = &world.parts[j];
-				addPairCorrelation(p1, p2, bins, buf);
+				addToDistanceBin(p1, p2, bins, buf);
 			}
 		}
 	} else {
@@ -605,7 +669,7 @@ static void calculatePairCorrelation(int bins, double *buf)
 			for (int i = 0; i < box->n; i++) { /* i'th particle in box */
 				Particle *p2 = p->next;
 				for (int j = i + 1; j < box->n; j++) {
-					addPairCorrelation(p, p2, bins, buf);
+					addToDistanceBin(p, p2, bins, buf);
 					p2 = p2->next;
 				}
 				for (int dix = -1; dix <= 1; dix++)
@@ -617,7 +681,7 @@ static void calculatePairCorrelation(int bins, double *buf)
 						continue;
 					p2 = b->p;
 					for (int j = 0; j < b->n; j++) {
-						addPairCorrelation(p, p2, bins, buf);
+						addToDistanceBin(p, p2, bins, buf);
 						p2 = p2->next;
 					}
 					assert(p2 == b->p);
@@ -632,16 +696,20 @@ static void calculatePairCorrelation(int bins, double *buf)
 
 	/* Rescale
 	 * Don't forget: we only counted distinct pairs above, so we should 
-	 * double everything to get 'every pair'. */
+	 * double everything to get 'every pair'.
+	 * Then we should divide by N because we averaged over every pair, 
+	 * while we actually should have considered one single particle 
+	 * with every other particle (instead of *every* particle with 
+	 * every other particle). */
 	double dr = config.truncateLJ / bins;
-	double factor = 2.0 / (rho * 4 * M_PI * dr);
+	double factor = 2.0 / (rho * 4 * M_PI * dr * config.numParticles);
 	for (int i = 0; i < bins; i++) {
-		double r = config.truncateLJ * ((double) (i + 1) / (double) bins);
+		double r = config.truncateLJ * ((double) (i + 1.0) / (double) bins);
 		buf[i] *= factor / (r*r);
 	}
 }
 
-static void addPairCorrelation(Particle *p1, Particle *p2, int bins, double *buf)
+static void addToDistanceBin(Particle *p1, Particle *p2, int bins, double *buf)
 {
 	double Rmax = config.truncateLJ;
 	Vec3 drVec = nearestImageVector(&p1->pos, &p2->pos);
@@ -653,27 +721,12 @@ static void addPairCorrelation(Particle *p1, Particle *p2, int bins, double *buf
 	buf[i]++;
 }
 
-/* Dump pair correlation in GNU Octave / Matlab format */
-void dumpPairCorrelation(FILE *stream, int bins, double *buf)
+static void dumpPairCorrelation(FILE *stream, int bins, double *buf)
 {
 	for (int i = 0; i < bins; i++) {
 		double r = config.truncateLJ * (i + 1)/bins;
 		fprintf(stream, "%f\t%f\n", r, buf[i]);
 	}
-}
-
-/* Dump pair correlation in GNU Octave / Matlab format */
-void dumpPairCorrelationm(FILE *stream, int bins, double *buf)
-{
-	double r;
-	r = config.truncateLJ * (1)/bins;
-	fprintf(stream, "[%f, %f;\n", r, buf[0]);
-	for (int i = 1; i < (bins - 1); i++) {
-		r = config.truncateLJ * (i + 1)/bins;
-		fprintf(stream, " %f, %f;\n", r, buf[i]);
-	}
-	r = config.truncateLJ;
-	fprintf(stream, " %f, %f];\n", r, buf[bins - 1]);
 }
 
 static double temperature()
@@ -799,50 +852,124 @@ void dumpStats()
 
 /* GENERIC INTERFACE FOR MEASUREMENTS BY SAMPLING */
 
-static long samples = 0;
-
-/* Will be called everytime we want to sample the system */
-void sampleMeasurement()
+/* Will be called everytime we want to sample the system. Either dump the 
+ * data immediately, or accumulate it to dump at the end.
+ * Returns false if something went wrong. */
+bool sampleMeasurement(FILE *stream)
 {
-	accumulatePairCorrelation();
+	switch (config.measurement) {
+	case NOTHING:
+		break;
+	case PRESSURE:
+		accumulatePressure();
+		break;
+	case PAIR_CORRELATION:
+		accumulatePairCorrelation();
+		break;
+	case ENERGIES:
+		dumpEnergies(stream);
+		break;
+	default:
+		fprintf(stderr, "Oops! Unknown measurement type! (type %d)\n", 
+							config.measurement);
+		break;
+	}
+
 	samples++;
+	return true;
 }
 
-/* Will be called at the end of the measurement, to dump the data */
-void dumpMeasurement(FILE *stream)
+/* Will be called at the end of the measurement, to dump potentially 
+ * accumulated data
+ * Returns false if something went wrong. */
+bool dumpMeasurement(FILE *stream)
 {
-	dumpAccumulatedPairCorrelation(stream);
+	if (samples <= 0)
+		return;
+
+	switch (config.measurement) {
+	case NOTHING:
+	case ENERGIES:
+		break;
+	case PAIR_CORRELATION:
+		dumpAccumulatedPairCorrelation(stream);
+		break;
+	case PRESSURE:
+		dumpAccumulatedPressure(stream);
+		break;
+	default:
+		fprintf(stderr, "Oops! Unknown measurement type! (type %d)\n", 
+							config.measurement);
+		return false;
+	}
+	return true;
 }
 
 
-/* INDIVIDUAL MEASUREMENTS BY SAMPLING */
+/* INDIVIDUAL MEASUREMENTS */
 
-static double *pairCorrelationBuffer;
-static int pairCorrelationBins = 300;
-
-void accumulatePairCorrelation()
+static void accumulatePairCorrelation(void)
 {
-	int bins = pairCorrelationBins;
-	if (pairCorrelationBuffer == NULL)
-		pairCorrelationBuffer = calloc(bins, sizeof(double));
+	int bins = accumPairCorrelationBins;
+	if (accumPairCorrelationBuffer == NULL)
+		accumPairCorrelationBuffer = calloc(bins, sizeof(double));
 
 	double *buf = calloc(bins, sizeof(double));
 	calculatePairCorrelation(bins, buf);
 	for (int i = 0; i < bins; i++)
-		pairCorrelationBuffer[i] += buf[i];
+		accumPairCorrelationBuffer[i] += buf[i];
 	free(buf);
 }
 
-void dumpAccumulatedPairCorrelation(FILE *stream)
+static void dumpAccumulatedPairCorrelation(FILE *stream)
 {
-	if (pairCorrelationBuffer == NULL) {
-		fprintf(stderr, "pairCorrelationBuffer is NULL!");
+	if (accumPairCorrelationBuffer == NULL) {
+		//fprintf(stderr, "accumPairCorrelationBuffer is NULL!");
 		return;
 	}
-	int bins = pairCorrelationBins;
+	int bins = accumPairCorrelationBins;
 	for (int i = 0; i < bins; i++)
-		pairCorrelationBuffer[i] /= samples;
-	dumpPairCorrelation(stream, bins, pairCorrelationBuffer);
+		accumPairCorrelationBuffer[i] /= samples;
+	dumpPairCorrelation(stream, bins, accumPairCorrelationBuffer);
+}
+
+static void dumpEnergies(FILE *stream)
+{
+	double K = kineticEnergy();
+	double V = potentialEnergy();
+
+	sanityCheck();
+	fprintf(stream, "%13f\t%13f\t%13f\t%13f\n", time, K+V, K, V);
+}
+
+/* Accumulate temperature measurements. */
+static double accumTemperature = 0;
+
+static void accumulateTemperature(void)
+{
+	accumTemperature += temperature();
+}
+
+static void accumulatePressure(void)
+{
+	accumulatePairCorrelation();
+	accumulateTemperature();
+}
+
+static void dumpAccumulatedPressure(FILE *stream)
+{
+	for (int i = 0; i < accumPairCorrelationBins; i++)
+		accumPairCorrelationBuffer[i] /= samples;
+
+	/*
+	checkPairCorrelation(accumPairCorrelationBins,
+			accumPairCorrelationBuffer);
+	*/
+
+	fprintf(stream, "%f", pressureFromPairCorrelation(
+				accumPairCorrelationBins,
+				accumPairCorrelationBuffer,
+				accumTemperature / samples));
 }
 
 
