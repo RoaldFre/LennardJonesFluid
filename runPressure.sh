@@ -2,8 +2,8 @@
 
 set -e
 
-numParticles=200
-LJcutoff=-1
+numParticles=400
+LJcutoff=2.5
 samples=50
 measWait=10
 measInterval=0.15

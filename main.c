@@ -36,11 +36,6 @@ static void printUsage(void)
 	printf("             c: pair Correlation function\n");
 	printf("             E: Energies: time, total, kinetic, potential\n");
 	printf("             P: Pressure: single value, derived from pair correlation function\n");
-	printf("                NOTE: Use sufficiently large L-J truncation length!\n"); 
-	printf("                      It's reccomended to run with '-l -1', which sets\n"); 
-	printf("                      the L-J truncation radius to half the worldsize\n"); 
-	printf("                      (the 1/2 is needed because of periodic boundary\n");
-	printf("                      conditions on cubic box.)\n"); 
 	printf("             Result gets dumped in "DATA_FILE_NAME"\n"); 
 	printf(" -t <flt>  length of Time steps\n");
 	printf("             default: %f\n", DEF_TIMESTEP);
@@ -48,7 +43,13 @@ static void printUsage(void)
 	printf("             default: %f (Boltzmann cte = mass = 1)\n", DEF_TEMPERATURE);
 	printf(" -c <flt>  thermal bath Coupling: relaxation time (zero to disable)\n");
 	printf("             default: %d * timestep\n", DEF_COUPLING_TIMESTEP_FACTOR);
-	printf(" -l <flt>  Lennard-Jones truncation Length. Negative value to disable truncation.\n");
+	printf(" -l <flt>  Lennard-Jones truncation Length. Negative value to set to\n");
+	printf("             half of the worldsize.\n");
+	printf("             Note: The 1/2 is needed to keep the paircorrelation\n");
+	printf("                   (and with it the derived pressure) correct.\n");
+	printf("                   Otherwise we get an artefact between r=worldsize/2\n");
+	printf("                   and r=worldsize/sqrt(2) because of the periodic\n");
+	printf("                   boundary conditions on a cubic box.\n");
 	printf("             default: %f\n", DEF_LJ_TRUNCATION);
 	printf(" -b <num>  number of Boxes per dimension\n");
 	printf("             default: max so that boxsize >= L-J truncation length\n");
