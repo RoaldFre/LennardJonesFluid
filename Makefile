@@ -20,7 +20,7 @@ O3:
 
 main: $(OBJECTS)
 	@echo "LD	main"
-	@gcc -o main $(OBJECTS) -lm -lSDL -lGL -ggdb $(PROFILE)
+	@gcc -o main $(CFLAGS) $(OBJECTS) -lm -lSDL -lGL -ggdb $(PROFILE)
 
 .c.o:
 	@echo "CC	$@"
