@@ -1,7 +1,7 @@
 OBJECTS = system.o main.o render.o measure.o
 WARNINGS = -pedantic -Wextra -Wall -Wwrite-strings -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
 PROFILE = 
-OPTIM = -O4 -flto -DNDEBUG -fexcess-precision=fast
+OPTIM = -O4 -flto -DNDEBUG -fexcess-precision=fast -ffast-math
 CFLAGS = $(WARNINGS) -std=c99 -march=native -ggdb $(OPTIM) $(PROFILE) $(BROWN)
 
 all: main
