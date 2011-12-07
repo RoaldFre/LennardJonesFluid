@@ -259,8 +259,8 @@ void die(const char *fmt, ...)
 	exit(1);
 }
 
-/* Advance the simulation by one time step. Render if neccesary. Return 
- * false if the user wants to quit. */
+/* Advance the simulation by one time step. Render and/or dump statistics 
+ * if neccesary. Return false if the user wants to quit. */
 static bool stepSimulation(void) {
 	static long stepsSinceRender = 0;
 	static int  stepsSinceVerbose = 0;
