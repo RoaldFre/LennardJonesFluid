@@ -300,13 +300,14 @@ void forEveryPair(void (*f)(Particle *p1, Particle *p2, void *data), void *data)
 		Box *box = boxFromIndex(ix, iy, iz);
 		Particle *p = box->p;
 
-		/* Loop over every partner of the i'th particle 'p' in the 
+		/* Loop over every partner of the i'th particle 'p' from the 
 		 * box 'box' */
 		n1 = box->n;
 		for (int i = 0; i < n1; i++) { /* i'th particle in box */
 			Particle *p2 = p->next;
 			for (int j = i + 1; j < n1; j++) {
 				(*f)(p, p2, data);
+				p2 = p2->next;
 			}
 			/* Loop over particles in adjacent boxes to the box 
 			 * of p. We need a total ordering on the boxes so 
@@ -320,16 +321,17 @@ void forEveryPair(void (*f)(Particle *p1, Particle *p2, void *data), void *data)
 			for (int diz = -1; diz <= 1; diz++) {
 				Box *b = boxFromNonPeriodicIndex(
 						ix+dix, iy+diy, iz+diz);
-				if (b == box)
+				if (b <= box)
 					continue;
 					/* if b == box: it's our own box!
 					 * else: only check boxes that have 
-					 * a strictly smaller pointer value 
+					 * a strictly larger pointer value 
 					 * to avoid double work. */
 				p2 = b->p;
 				n2 = b->n;
 				for (int j = 0; j < n2; j++) {
 					(*f)(p, p2, data);
+					p2 = p2->next;
 				}
 				assert(p2 == b->p);
 			}
@@ -369,7 +371,6 @@ static void verlet()
 	}
 	reboxParticles(); /* Move particles to correct box if they escaped */
 	calculateAcceleration(); /* acc(t + dt) */
-	//calculateAccelerationBruteForce(); /* acc(t + dt) */
 	for (int i = 0; i < config.numParticles; i++) {
 		Particle *p = &world.parts[i];
 		Vec3 tmp;
@@ -429,8 +430,7 @@ static void lennardJonesForce(Particle *p1, Particle *p2)
 	double dr12 = dr6*dr6;	
 	double dr14 = dr12*dr2;	
 
-
-	//assert(fabs(-24*(2/dr12 - 1/dr6)) < 1000000);
+	//assert(fabs(-24*(2/dr12 - 1/dr6)) < 1e10);
 
 	scale(&drVec, -24*(2/dr14 - 1/dr8), &Fi);
 	add(&p1->acc, &Fi, &p1->acc);
