@@ -240,10 +240,12 @@ static void parseArguments(int argc, char **argv)
 			"radius (%f)!\n", config.boxSize, config.truncateLJ);
 
 	if (config.thermostatTau < 0)
-		config.thermostatTau = 1000 * config.timeStep;
+		config.thermostatTau = DEF_COUPLING_TIMESTEP_FACTOR
+						* config.timeStep;
 
 	if (config.renderSteps < 0)
-		config.renderSteps = 1 + 10000 / config.numParticles;
+		config.renderSteps = 1 + DEF_PARTICLES_PER_RENDER 
+						/ config.numParticles;
 }
 
 void die(const char *fmt, ...)
