@@ -19,14 +19,14 @@ static void plotFooter(FILE *stream);
 static int plot(void);
 
 /* Defaults */
-#define DEF_TIMESTEP 			0.0001
+#define DEF_TIMESTEP 			0.001
 #define DEF_TEMPERATURE 		2.0
 #define DEF_COUPLING_TIMESTEP_FACTOR 	1000
 #define DEF_LJ_TRUNCATION 		2.5
 #define DEF_MEASUREMENT_INTERVAL	0.2
 #define DEF_MEASUREMENT_WAIT 		10.0
 #define DEF_PARTICLES_PER_RENDER 	10000
-#define DEF_RENDER_RADIUS 		1.0
+#define DEF_RENDER_RADIUS 		0.7
 
 static void printUsage(void)
 {

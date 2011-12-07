@@ -44,6 +44,10 @@ static double randNorm(void);
 static void checkPairCorrelation(int bins, double *buf);
 
 
+//TODO: function: 'forEveryPair()' that gets a function pointer to a function:
+//f(Particle *p1, Particle *p2, void *data)
+//and a void pointer for payload/return
+
 
 /* GLOBALS */
 
