@@ -10,6 +10,7 @@
 #include "vmath.h"
 #include "system.h"
 #include "render.h"
+#include "measure.h"
 
 #define DATA_FILE_NAME "/tmp/data.txt"
 

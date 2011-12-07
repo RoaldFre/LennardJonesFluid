@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include "vmath.h"
+#include "measure.h"
 
 typedef struct particle
 {
@@ -27,13 +28,6 @@ typedef struct world
 } World;
 
 
-enum measurementType {
-	NOTHING,
-	PAIR_CORRELATION,
-	ENERGIES,
-	PRESSURE
-};
-
 typedef struct config
 {
 	enum measurementType measurement;
@@ -54,19 +48,20 @@ typedef struct config
 	double radius; /* The radius of the particles to render */
 } Config;
 
-int main(int argc, char ** argv);
 bool allocWorld(void);
 void fillWorld(void);
 void freeWorld(void);
-void dumpWorld(void);
 void stepWorld(void);
-bool sanityCheck(void);
-bool physicsCheck(void);
+void dumpWorld(void);
 void dumpStats(void);
-bool sampleMeasurement(FILE *stream);
-bool dumpMeasurement(FILE *stream);
+bool sanityCheck(void);
+void forEveryPair(void (*f)(Particle *p1, Particle *p2, void *data), void *data);
+Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2); 
 
 extern World world;
 extern Config config;
+
+/* Current time in the simulation */
+extern double time;
 
 #endif

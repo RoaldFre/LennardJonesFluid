@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include "vmath.h"
 #include "system.h"
+#include "measure.h"
+
+#define NOT_USED(x) ( (void)(x) )
 
 static void collideWalls(int ix, int iy, int iz);
 static void reboxParticles(void);
@@ -17,36 +20,12 @@ static void removeFromBox(Particle *p, Box *from);
 static void verlet(void);
 static void thermostat(void);
 static void calculateAcceleration(void);
-static void calculateAccelerationBruteForce(void);
 static void lennardJonesForce(Particle *p1, Particle *p2);
-static Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2); 
 
-static Vec3   momentum(void);
-static double temperature(void);
-static double kineticEnergy(void);
-static double potentialEnergy(void);
-static double potentialEnergyBruteForce(void);
-static void   calculatePairCorrelation(int bins, double *buf);
-static void   addToDistanceBin(Particle *p1, Particle *p2, int bins, double *buf);
-static double pressureFromPairCorrelation(int bins, double *buf, double Temperature);
-
-static void accumulatePairCorrelation(void);
-static void accumulatePressure(void);
-static void accumulateTemperature(void);
-
-static void dumpAccumulatedPairCorrelation(FILE *stream);
-static void dumpAccumulatedPressure(FILE *stream);
-static void dumpEnergies(FILE *stream);
-static void dumpPairCorrelation(FILE *stream, int bins, double *buf);
 
 static double randNorm(void);
 
-static void checkPairCorrelation(int bins, double *buf);
 
-
-//TODO: function: 'forEveryPair()' that gets a function pointer to a function:
-//f(Particle *p1, Particle *p2, void *data)
-//and a void pointer for payload/return
 
 
 /* GLOBALS */
@@ -54,19 +33,7 @@ static void checkPairCorrelation(int bins, double *buf);
 World world;
 Config config;
 
-/* Buffer where we accumulate the pair correlation funcion measurements */
-static double *accumPairCorrelationBuffer = NULL;
-
-/* Bins of said buffer */
-static int accumPairCorrelationBins = 100;
-
-/* Amount of measurement samples made. */
-static long samples = 0;
-
-/* Current time in the simulation */
-static double time = 0;
-
-
+double time = 0;
 
 
 /* UNDER THE BONNET STUFF */
@@ -299,6 +266,80 @@ void dumpWorld()
 	return;
 }
 
+/* Execute a given function for every discinct pair of particles that are 
+ * within the same box, or in adjacent boxes..
+ * Arguments:
+ *  - Function pointer to function that will be fed all the particle pairs.
+ *  - Pointer to data that will be supplied to said function.
+ */
+void forEveryPair(void (*f)(Particle *p1, Particle *p2, void *data), void *data)
+{
+	int nb = config.numBox;
+	int n1, n2;
+
+	assert(sanityCheck());
+
+	if (nb < 3) {
+		/* Brute force. Reason: see comment below */
+		for (int i = 0; i < config.numParticles; i++) {
+			Particle *p1 = &world.parts[i];
+			for (int j = i + 1; j < config.numParticles; j++) {
+				Particle *p2 = &world.parts[j];
+				(*f)(p1, p2, data);
+			}
+		}
+		return;
+	}
+
+
+	/* Loop over all boxes */
+	for (int ix = 0; ix < nb; ix++)
+	for (int iy = 0; iy < nb; iy++)
+	for (int iz = 0; iz < nb; iz++) {
+		/* Loop over all particles in this box */
+		Box *box = boxFromIndex(ix, iy, iz);
+		Particle *p = box->p;
+
+		/* Loop over every partner of the i'th particle 'p' in the 
+		 * box 'box' */
+		n1 = box->n;
+		for (int i = 0; i < n1; i++) { /* i'th particle in box */
+			Particle *p2 = p->next;
+			for (int j = i + 1; j < n1; j++) {
+				(*f)(p, p2, data);
+			}
+			/* Loop over particles in adjacent boxes to the box 
+			 * of p. We need a total ordering on the boxes so 
+			 * we don't check the same box twice. We use the 
+			 * pointer value for this.
+			 * However, due to periodic boundary conditions, 
+			 * this ONLY works when there are AT LEAST 3 boxes 
+			 * in each dimension! */
+			for (int dix = -1; dix <= 1; dix++)
+			for (int diy = -1; diy <= 1; diy++)
+			for (int diz = -1; diz <= 1; diz++) {
+				Box *b = boxFromNonPeriodicIndex(
+						ix+dix, iy+diy, iz+diz);
+				if (b == box)
+					continue;
+					/* if b == box: it's our own box!
+					 * else: only check boxes that have 
+					 * a strictly smaller pointer value 
+					 * to avoid double work. */
+				p2 = b->p;
+				n2 = b->n;
+				for (int j = 0; j < n2; j++) {
+					(*f)(p, p2, data);
+				}
+				assert(p2 == b->p);
+			}
+
+			p = p->next;
+		}
+
+		assert(p == box->p);
+	}
+}
 
 
 /* PHYSICS */
@@ -339,97 +380,21 @@ static void verlet()
 	}
 }
 
-static void calculateAcceleration()
+static void accelerationWorker(Particle *p1, Particle *p2, void *data)
 {
-	int i, j, ix, iy, iz, dix, diy, diz, n1, n2;
-	int nb = config.numBox;
-
-	assert(sanityCheck());
-
-	if (nb < 3) {
-		calculateAccelerationBruteForce();
-		/* Reason: see comment below */
-		return;
-	}
-
-	/* Reset acceleration */
-	for (i = 0; i < config.numParticles; i++) {
-		world.parts[i].acc.x = 0;
-		world.parts[i].acc.y = 0;
-		world.parts[i].acc.z = 0;
-	}
-	
-	/* Calculate acceleration */
-	for (ix = 0; ix < nb; ix++)
-	for (iy = 0; iy < nb; iy++)
-	for (iz = 0; iz < nb; iz++) {
-		/* Calculate acceleration of all particles in this box */
-		Box *box = boxFromIndex(ix, iy, iz);
-		Particle *p = box->p;
-
-		/* Calculate acceleration of the i'th particles 'p' in the 
-		 * box 'box' */
-		n1 = box->n;
-		for (i = 0; i < n1; i++) {
-			/* Loop over every pair of particles in the box of p */
-			Particle *p2 = p->next;
-			for (j = i + 1; j < n1; j++) {
-				lennardJonesForce(p, p2);
-				p2 = p2->next;
-			}
-			/* Loop over particles in adjacent boxes to the box 
-			 * of p. We need a total ordering on the boxes so 
-			 * we don't check the same box twice. We use the 
-			 * pointer value for this.
-			 * However, due to periodic boundary conditions, 
-			 * this ONLY works when there are AT LEAST 3 boxes 
-			 * in each dimension! */
-			for (dix = -1; dix <= 1; dix++)
-			for (diy = -1; diy <= 1; diy++)
-			for (diz = -1; diz <= 1; diz++) {
-				Box *b = boxFromNonPeriodicIndex(
-						ix+dix, iy+diy, iz+diz);
-				if (b <= box)
-					continue;
-					/* if b == box: it's our own box!
-					 * else: only check boxes that have 
-					 * a strictly smaller pointer value 
-					 * to avoid double work. */
-				p2 = b->p;
-				n2 = b->n;
-				for (j = 0; j < n2; j++) {
-					lennardJonesForce(p, p2);
-					p2 = p2->next;
-				}
-			}
-
-			p = p->next;
-		}
-	}
+	NOT_USED(data);
+	lennardJonesForce(p1, p2);
 }
 
-static void calculateAccelerationBruteForce()
+static void calculateAcceleration()
 {
-	/* Reset acceleration */
-	for (int i = 0; i < config.numParticles; i++) {
-		world.parts[i].acc.x = 0;
-		world.parts[i].acc.y = 0;
-		world.parts[i].acc.z = 0;
-	}
-	
-	for (int i = 0; i < config.numParticles; i++) {
-		Particle *p1 = &world.parts[i];
-		for (int j = i + 1; j < config.numParticles; j++) {
-			Particle *p2 = &world.parts[j];
-			lennardJonesForce(p1, p2);
-		}
-	}
+	forEveryPair(&accelerationWorker, NULL);
 }
 
 /* Returns the shortest vector that points from v1 to v2, taking into 
  * account the periodic boundary conditions. The particle MUST be within 
  * the correct bounds. */
-static Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2)
+Vec3 nearestImageVector(Vec3 *v1, Vec3 *v2)
 {
 	Vec3 diff;
 	double L = config.numBox * config.boxSize;
@@ -472,31 +437,6 @@ static void lennardJonesForce(Particle *p1, Particle *p2)
 	sub(&p2->acc, &Fi, &p2->acc);
 }
 
-
-static double lennardJonesPotential(Particle *p1, Particle *p2)
-{
-	assert(p1 != p2);
-	assert(p1 != NULL  &&  p2 != NULL);
-
-	Vec3 drVec = nearestImageVector(&p1->pos, &p2->pos);
-	double dr = length(&drVec);
-
-	assert(dr != 0);
-
-	if (dr > config.truncateLJ)
-		return 0;
-
-	double dr3 = dr * dr * dr;	
-	double dr6 = dr3 * dr3;	
-	double dr12 = dr6 * dr6;	
-
-	double dRc = config.truncateLJ;
-	double dRc3 = dRc * dRc * dRc;
-	double dRc6 = dRc3 * dRc3;
-	double dRc12 = dRc6 * dRc6;
-
-	return 4*(1/dr12 - 1/dr6 - (1/dRc12 - 1/dRc6));
-}
 
 static void collideWalls(int ix, int iy, int iz)
 {
@@ -571,274 +511,6 @@ void stepWorld(void)
 	time += config.timeStep;
 }
 
-
-/* PHYSICS MEASUREMENTS */
-
-/* Instantaneous pressure */
-static double pressure(int bins)
-{
-	double *buf = calloc(bins, sizeof(double));
-	calculatePairCorrelation(bins, buf);
-	double P = pressureFromPairCorrelation(bins, buf, temperature());
-	free(buf);
-	return P;
-}
-
-static double pressureFromPairCorrelation(int bins, double *buf, double Temperature)
-{
-	/* P = rho kB T  -  1/6 rho^2 integral(4*pi*r^2 * r dphi/dr g(r) dr)
-	 * where
-	 * dphi/dr = -24 (2/r^13 - 1/r^7)
-	 * combined, the integral becomes:
-	 * integral(4*pi * (-24)*(2/r^10 - 1/r^4) * g(r) * dr) */
-	double ws = config.numBox * config.boxSize;
-	double rho = config.numParticles / (ws * ws * ws);
-
-	double integral = 0;
-	double dr = config.truncateLJ / bins;
-	for (int i = 0; i < bins; i++) {
-		double r = config.truncateLJ * (i + 1)/bins;
-		double r2  = r*r;
-		double r4  = r2*r2;
-		double r8  = r4*r4;
-		double r10  = r8*r2;
-		
-		integral += (2/r10 - 1/r4) * buf[i];
-	}
-	/* scale with the correct factors */
-	integral *= 4 * M_PI * (-24) * dr;
-
-	return rho * (Temperature - rho/6 * integral);
-}
-
-/* Check for consistency
- * NOTE: This only makes sense if the LJ-truncation length is sufficiently 
- * large (at least half the worldsize for periodic boundary conditions). 
- * This means everything reduces to O(n^2) because there will be no 
- * partitioning (one big box [or 2x2 boxes]) */
-static void checkPairCorrelation(int bins, double *buf)
-{
-	/* We know:
-	 * integral(rho * g(r) * 4*pi*r^2 dr) = N - 1
-	 * So check if we recover this. */
-
-	double ws = config.numBox * config.boxSize;
-	double rho = config.numParticles / (ws * ws * ws);
-
-	double integral = 0;
-	double dr = config.truncateLJ / bins;
-	for (int i = 0; i < bins; i++) {
-		double r  = config.truncateLJ * (i + 1.0)/bins;
-		integral += r*r * buf[i];
-	}
-	/* scale with the correct factors */
-	integral *= rho * 4 * M_PI * dr;
-
-	printf("Pair correlation integral: %f (num particles: %d)\n",
-			integral, config.numParticles);
-}
-
-/* Calculate the (discrete) pair correlation between r=0 and 
- * r=config.truncateLJ for the given number of bins in the given buffer. */
-static void calculatePairCorrelation(int bins, double *buf)
-{
-	int nb = config.numBox;
-	double ws = nb * config.boxSize;
-	double rho = config.numParticles / (ws * ws * ws);
-
-	assert(sanityCheck());
-
-	for (int i = 0; i < bins; i++) {
-		buf[i] = 0;
-	}
-
-	if (nb < 3) {
-		/* Brute force it */
-		for (int i = 0; i < config.numParticles; i++) {
-			Particle *p1 = &world.parts[i];
-			for (int j = i + 1; j < config.numParticles; j++) {
-				Particle *p2 = &world.parts[j];
-				addToDistanceBin(p1, p2, bins, buf);
-			}
-		}
-	} else {
-		/* Use the boxes */
-		for (int ix = 0; ix < nb; ix++)
-		for (int iy = 0; iy < nb; iy++)
-		for (int iz = 0; iz < nb; iz++) {
-			/* Loop over all boxes */
-			Box *box = boxFromIndex(ix, iy, iz);
-			Particle *p = box->p;
-
-			for (int i = 0; i < box->n; i++) { /* i'th particle in box */
-				Particle *p2 = p->next;
-				for (int j = i + 1; j < box->n; j++) {
-					addToDistanceBin(p, p2, bins, buf);
-					p2 = p2->next;
-				}
-				for (int dix = -1; dix <= 1; dix++)
-				for (int diy = -1; diy <= 1; diy++)
-				for (int diz = -1; diz <= 1; diz++) {
-					Box *b = boxFromNonPeriodicIndex(
-							ix+dix, iy+diy, iz+diz);
-					if (b <= box)
-						continue;
-					p2 = b->p;
-					for (int j = 0; j < b->n; j++) {
-						addToDistanceBin(p, p2, bins, buf);
-						p2 = p2->next;
-					}
-					assert(p2 == b->p);
-				}
-
-				p = p->next;
-			}
-
-			assert(p == box->p);
-		}
-	}
-
-	/* Rescale
-	 * Don't forget: we only counted distinct pairs above, so we should 
-	 * double everything to get 'every pair'.
-	 * Then we should divide by N because we averaged over every pair, 
-	 * while we actually should have considered one single particle 
-	 * with every other particle (instead of *every* particle with 
-	 * every other particle). */
-	double dr = config.truncateLJ / bins;
-	double factor = 2.0 / (rho * 4 * M_PI * dr * config.numParticles);
-	for (int i = 0; i < bins; i++) {
-		double r = config.truncateLJ * ((double) (i + 1.0) / (double) bins);
-		buf[i] *= factor / (r*r);
-	}
-}
-
-static void addToDistanceBin(Particle *p1, Particle *p2, int bins, double *buf)
-{
-	double Rmax = config.truncateLJ;
-	Vec3 drVec = nearestImageVector(&p1->pos, &p2->pos);
-	double dr = length(&drVec);
-	if (dr >= Rmax)
-		return;
-
-	int i = bins * dr / Rmax;
-	buf[i]++;
-}
-
-static void dumpPairCorrelation(FILE *stream, int bins, double *buf)
-{
-	for (int i = 0; i < bins; i++) {
-		double r = config.truncateLJ * (i + 1)/bins;
-		fprintf(stream, "%f\t%f\n", r, buf[i]);
-	}
-}
-
-static double temperature()
-{
-	return 2.0/3.0 * kineticEnergy() / config.numParticles;
-}
-
-static double potentialEnergy()
-{
-	double totV = 0;
-	int nb = config.numBox;
-	int n1, n2;
-
-	assert(sanityCheck());
-
-	if (nb < 3)
-		return potentialEnergyBruteForce();
-		/* Reason: see comment below */
-
-	for (int ix = 0; ix < nb; ix++)
-	for (int iy = 0; iy < nb; iy++)
-	for (int iz = 0; iz < nb; iz++) {
-		/* Loop over all boxes */
-		Box *box = boxFromIndex(ix, iy, iz);
-		Particle *p = box->p;
-
-		n1 = box->n;
-		for (int i = 0; i < n1; i++) { /* i'th particle in box */
-			Particle *p2 = p->next;
-			for (int j = i + 1; j < n1; j++) {
-				totV += 2*lennardJonesPotential(p, p2);
-				p2 = p2->next;
-			}
-			/* Loop over particles in adjacent boxes to the box 
-			 * of p. We need a total ordering on the boxes so 
-			 * we don't check the same box twice. We use the 
-			 * pointer value for this.
-			 * However, due to periodic boundary conditions, 
-			 * this ONLY works when there are AT LEAST 3 boxes 
-			 * in each dimension! */
-			for (int dix = -1; dix <= 1; dix++)
-			for (int diy = -1; diy <= 1; diy++)
-			for (int diz = -1; diz <= 1; diz++) {
-				Box *b = boxFromNonPeriodicIndex(
-						ix+dix, iy+diy, iz+diz);
-				if (b == box)
-					continue;
-					/* if b == box: it's our own box!
-					 * else: only check boxes that have 
-					 * a strictly smaller pointer value 
-					 * to avoid double work. */
-				p2 = b->p;
-				n2 = b->n;
-				for (int j = 0; j < n2; j++) {
-					totV += lennardJonesPotential(p, p2);
-					p2 = p2->next;
-				}
-				assert(p2 == b->p);
-			}
-
-			p = p->next;
-		}
-
-		assert(p == box->p);
-	}
-
-	return totV/2;
-}
-
-static double potentialEnergyBruteForce()
-{
-	double totV = 0;
-
-	for (int i = 0; i < config.numParticles; i++) {
-		Particle *p1 = &world.parts[i];
-		for (int j = i + 1; j < config.numParticles; j++) {
-			Particle *p2 = &world.parts[j];
-			totV += lennardJonesPotential(p1, p2);
-		}
-	}
-
-	return totV;
-}
-
-static double kineticEnergy()
-{
-	double totKE = 0;
-	for (int i = 0; i < config.numParticles; i++)
-	{
-		double vsq;
-		Particle *p = &world.parts[i];
-		vsq = dot(&p->vel, &p->vel);
-		totKE += vsq;
-	}
-	return totKE/2;
-}
-
-static Vec3 momentum()
-{
-	Vec3 totP = {0, 0, 0};
-	for (int i = 0; i < config.numParticles; i++)
-	{
-		Particle *p = &world.parts[i];
-		add(&totP, &p->vel, &totP);
-	}
-	return totP;
-}
-
 void dumpStats()
 {
 	double K = kineticEnergy();
@@ -852,129 +524,6 @@ void dumpStats()
 	//printf("dV = %13f\n", V - potentialEnergyBruteForce());
 }
 
-
-
-/* GENERIC INTERFACE FOR MEASUREMENTS BY SAMPLING */
-
-/* Will be called everytime we want to sample the system. Either dump the 
- * data immediately, or accumulate it to dump at the end.
- * Returns false if something went wrong. */
-bool sampleMeasurement(FILE *stream)
-{
-	switch (config.measurement) {
-	case NOTHING:
-		break;
-	case PRESSURE:
-		accumulatePressure();
-		break;
-	case PAIR_CORRELATION:
-		accumulatePairCorrelation();
-		break;
-	case ENERGIES:
-		dumpEnergies(stream);
-		break;
-	default:
-		fprintf(stderr, "Oops! Unknown measurement type! (type %d)\n", 
-							config.measurement);
-		break;
-	}
-
-	samples++;
-	return true;
-}
-
-/* Will be called at the end of the measurement, to dump potentially 
- * accumulated data
- * Returns false if something went wrong. */
-bool dumpMeasurement(FILE *stream)
-{
-	if (samples <= 0)
-		return;
-
-	switch (config.measurement) {
-	case NOTHING:
-	case ENERGIES:
-		break;
-	case PAIR_CORRELATION:
-		dumpAccumulatedPairCorrelation(stream);
-		break;
-	case PRESSURE:
-		dumpAccumulatedPressure(stream);
-		break;
-	default:
-		fprintf(stderr, "Oops! Unknown measurement type! (type %d)\n", 
-							config.measurement);
-		return false;
-	}
-	return true;
-}
-
-
-/* INDIVIDUAL MEASUREMENTS */
-
-static void accumulatePairCorrelation(void)
-{
-	int bins = accumPairCorrelationBins;
-	if (accumPairCorrelationBuffer == NULL)
-		accumPairCorrelationBuffer = calloc(bins, sizeof(double));
-
-	double *buf = calloc(bins, sizeof(double));
-	calculatePairCorrelation(bins, buf);
-	for (int i = 0; i < bins; i++)
-		accumPairCorrelationBuffer[i] += buf[i];
-	free(buf);
-}
-
-static void dumpAccumulatedPairCorrelation(FILE *stream)
-{
-	if (accumPairCorrelationBuffer == NULL) {
-		//fprintf(stderr, "accumPairCorrelationBuffer is NULL!");
-		return;
-	}
-	int bins = accumPairCorrelationBins;
-	for (int i = 0; i < bins; i++)
-		accumPairCorrelationBuffer[i] /= samples;
-	dumpPairCorrelation(stream, bins, accumPairCorrelationBuffer);
-}
-
-static void dumpEnergies(FILE *stream)
-{
-	double K = kineticEnergy();
-	double V = potentialEnergy();
-
-	sanityCheck();
-	fprintf(stream, "%13f\t%13f\t%13f\t%13f\n", time, K+V, K, V);
-}
-
-/* Accumulate temperature measurements. */
-static double accumTemperature = 0;
-
-static void accumulateTemperature(void)
-{
-	accumTemperature += temperature();
-}
-
-static void accumulatePressure(void)
-{
-	accumulatePairCorrelation();
-	accumulateTemperature();
-}
-
-static void dumpAccumulatedPressure(FILE *stream)
-{
-	for (int i = 0; i < accumPairCorrelationBins; i++)
-		accumPairCorrelationBuffer[i] /= samples;
-
-	/*
-	checkPairCorrelation(accumPairCorrelationBins,
-			accumPairCorrelationBuffer);
-	*/
-
-	fprintf(stream, "%f", pressureFromPairCorrelation(
-				accumPairCorrelationBins,
-				accumPairCorrelationBuffer,
-				accumTemperature / samples));
-}
 
 
 
@@ -1069,16 +618,3 @@ bool sanityCheck()
 	return OK;
 }
 
-/* Check if the physics still make sense. */
-bool physicsCheck()
-{
-	Vec3 P = momentum();
-	double Plength = length(&P);
-	if (Plength > 0.0001) {
-		fprintf(stderr, "\nMOMENTUM CONSERVATION VIOLATED! "
-				"Total momentum: |P| = %f\n", Plength);
-		return false;
-	}
-
-	return true;
-}

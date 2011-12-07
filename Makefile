@@ -1,4 +1,4 @@
-OBJECTS = system.o main.o render.o
+OBJECTS = system.o main.o render.o measure.o
 WARNINGS = -pedantic -Wextra -Wall -Wwrite-strings -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
 PROFILE = 
 OPTIM = -O3 -DNDEBUG -fexcess-precision=fast
