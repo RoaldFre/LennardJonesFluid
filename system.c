@@ -389,6 +389,13 @@ static void accelerationWorker(Particle *p1, Particle *p2, void *data)
 
 static void calculateAcceleration()
 {
+	/* Reset acceleration */
+	for (int i = 0; i < config.numParticles; i++) {
+		world.parts[i].acc.x = 0;
+		world.parts[i].acc.y = 0;
+		world.parts[i].acc.z = 0;
+	}
+
 	forEveryPair(&accelerationWorker, NULL);
 }
 
