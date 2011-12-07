@@ -85,12 +85,12 @@ bool stepGraphics()
 				printf("Time step: %f\n", config.timeStep);
 				break;
 			case SDLK_SPACE:
-				config.temperature *= 1.2;
-				printf("Temperature: %f\n", config.temperature);
+				config.thermostatTemp *= 1.2;
+				printf("Temperature: %f\n", config.thermostatTemp);
 				break;
 			case SDLK_BACKSPACE:
-				config.temperature /= 1.2;
-				printf("Temperature: %f\n", config.temperature);
+				config.thermostatTemp /= 1.2;
+				printf("Temperature: %f\n", config.thermostatTemp);
 				break;
 			case SDLK_RETURN:
 				SDL_WM_ToggleFullScreen(surface);

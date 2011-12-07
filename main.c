@@ -80,7 +80,7 @@ static void parseArguments(int argc, char **argv)
 	config.timeStep 	= DEF_TIMESTEP;
 	config.measureInterval  = DEF_MEASUREMENT_INTERVAL;
 	config.measureWait	= DEF_MEASUREMENT_WAIT;
-	config.temperature	= DEF_TEMPERATURE;
+	config.thermostatTemp	= DEF_TEMPERATURE;
 	config.radius		= DEF_RENDER_RADIUS;
 
 	/* guards */
@@ -117,10 +117,10 @@ static void parseArguments(int argc, char **argv)
 						config.timeStep);
 			break;
 		case 'T':
-			config.temperature = atof(optarg);
-			if (config.temperature < 0)
+			config.thermostatTemp = atof(optarg);
+			if (config.thermostatTemp < 0)
 				die("Invalid temperature %f\n",
-						config.temperature);
+						config.thermostatTemp);
 			break;
 		case 'c':
 			config.thermostatTau = atof(optarg);

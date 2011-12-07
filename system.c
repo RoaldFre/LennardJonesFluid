@@ -187,13 +187,13 @@ bool allocWorld()
  * are placed on a uniform lattice filling the entire world.
  *
  * Initial velocities are sampled from a normal distribution with variance 
- * 'config.temperature'. Velocities are then shifted to set the total 
+ * 'config.thermostatTemp'. Velocities are then shifted to set the total 
  * momentum to zero. */
 void fillWorld()
 {
 	Particle *ps = world.parts;
 	double worldSize = config.numBox * config.boxSize;
-	double stdev = sqrt(config.temperature); // TODO factor 1/3 (3D) somethere?
+	double stdev = sqrt(config.thermostatTemp); // TODO factor 1/3 (3D) somethere?
 	int nPerDim = ceil(cbrt(config.numParticles));
 
 	double spacing = config.truncateLJ;
@@ -497,7 +497,7 @@ static void thermostat()
 
 	/* Mass and Boltzmann constant are 1 */ 
 	double Tk  = temperature();
-	double T0  = config.temperature;
+	double T0  = config.thermostatTemp;
 	double dt  = config.timeStep;
 	double tau = config.thermostatTau;
 	double lambda = sqrt(1 + dt/tau * (T0/Tk - 1));

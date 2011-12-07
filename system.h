@@ -42,7 +42,6 @@ typedef struct config
 	long   renderSteps;     /* Physics steps between rendering frames. */
 	double timeStep;
 	double truncateLJ; /* Radius at which L-J potential gets truncated. */
-	double temperature;    /* Desired temperature. */
 	double thermostatTemp; /* Thermostat temperature. */
 	double thermostatTau;  /* Thermostat relaxation time. */
 	double radius; /* The radius of the particles to render */
