@@ -124,9 +124,9 @@ static void parseArguments(int argc, char **argv)
 			break;
 		case 'c':
 			config.thermostatTau = atof(optarg);
-			if (config.thermostatTau <= 0)
-				die("Invalid thermostat relaxation time %f\n",
-						config.thermostatTau);
+			if (config.thermostatTau < 0)
+				die("Invalid thermostat relaxation time %s\n",
+						optarg);
 			break;
 		case 'l':
 			config.truncateLJ = atof(optarg);
