@@ -352,6 +352,7 @@ static void verlet()
 	double worldSize = config.numBox * config.boxSize;
 
 	/* Velocity Verlet */
+	#pragma omp parallel for
 	for (int i = 0; i < config.numParticles; i++) {
 		Particle *p = &world.parts[i];
 		Vec3 tmp;
@@ -371,6 +372,7 @@ static void verlet()
 	}
 	reboxParticles(); /* Move particles to correct box if they escaped */
 	calculateAcceleration(); /* acc(t + dt) */
+	#pragma omp parallel for
 	for (int i = 0; i < config.numParticles; i++) {
 		Particle *p = &world.parts[i];
 		Vec3 tmp;
@@ -502,6 +504,7 @@ static void thermostat()
 	double tau = config.thermostatTau;
 	double lambda = sqrt(1 + dt/tau * (T0/Tk - 1));
 
+	#pragma omp parallel for
 	for (int i = 0; i < config.numParticles; i++) {
 		Particle *p = &world.parts[i];
 		scale(&p->vel, lambda, &p->vel);
