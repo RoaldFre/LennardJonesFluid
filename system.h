@@ -41,9 +41,10 @@ typedef struct config
 	double measureWait;     /* Time to wait before starting measurement */
 	long   renderSteps;     /* Physics steps between rendering frames. */
 	double timeStep;
-	double truncateLJ; /* Radius at which L-J potential gets truncated. */
-	double thermostatTemp; /* Thermostat temperature. */
-	double thermostatTau;  /* Thermostat relaxation time. */
+	double truncateLJ;      /* Radius at which L-J potential gets truncated. */
+	double initialTemp;     /* Initial temperature. */
+	double thermostatTemp;  /* Thermostat temperature. */
+	double thermostatTau;   /* Thermostat relaxation time. */
 	double radius; /* The radius of the particles to render */
 } Config;
 

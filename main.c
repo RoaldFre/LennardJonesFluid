@@ -42,6 +42,8 @@ static void printUsage(void)
 	printf("             default: %f\n", DEF_TIMESTEP);
 	printf(" -T <flt>  Temperature\n");
 	printf("             default: %f (Boltzmann cte = mass = 1)\n", DEF_TEMPERATURE);
+	printf(" -I <flt>  Initial temperature of system\n");
+	printf("             default: equal to temperature\n");
 	printf(" -c <flt>  thermal bath Coupling: relaxation time (zero to disable)\n");
 	printf("             default: %d * timestep\n", DEF_COUPLING_TIMESTEP_FACTOR);
 	printf(" -l <flt>  Lennard-Jones truncation Length. Negative value to set to\n");
@@ -87,8 +89,9 @@ static void parseArguments(int argc, char **argv)
 	config.renderSteps = -1;
 	config.numBox = -1;
 	config.thermostatTau = -1;
+	config.initialTemp = -1;
 
-	while ((c = getopt(argc, argv, ":m:t:T:c:l:b:s:i:w:j:rR:v:h")) != -1)
+	while ((c = getopt(argc, argv, ":m:t:T:I:c:l:b:s:i:w:j:rR:v:h")) != -1)
 	{
 		switch (c)
 		{
@@ -120,6 +123,12 @@ static void parseArguments(int argc, char **argv)
 			config.thermostatTemp = atof(optarg);
 			if (config.thermostatTemp < 0)
 				die("Invalid temperature %s\n",
+						optarg);
+			break;
+		case 'I':
+			config.initialTemp = atof(optarg);
+			if (config.initialTemp < 0)
+				die("Invalid initial temperature %s\n",
 						optarg);
 			break;
 		case 'c':
@@ -242,6 +251,8 @@ static void parseArguments(int argc, char **argv)
 	if (config.thermostatTau < 0)
 		config.thermostatTau = DEF_COUPLING_TIMESTEP_FACTOR
 						* config.timeStep;
+	if (config.initialTemp < 0)
+		config.initialTemp = config.thermostatTemp;
 
 	if (config.renderSteps < 0)
 		config.renderSteps = 1 + DEF_PARTICLES_PER_RENDER 

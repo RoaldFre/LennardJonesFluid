@@ -193,7 +193,7 @@ void fillWorld()
 {
 	Particle *ps = world.parts;
 	double worldSize = config.numBox * config.boxSize;
-	double stdev = sqrt(config.thermostatTemp); // TODO factor 1/3 (3D) somethere?
+	double stdev = sqrt(config.initialTemp);
 	int nPerDim = ceil(cbrt(config.numParticles));
 
 	double spacing = config.truncateLJ;
