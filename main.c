@@ -113,14 +113,14 @@ static void parseArguments(int argc, char **argv)
 		case 't':
 			config.timeStep = atof(optarg);
 			if (config.timeStep <= 0)
-				die("Invalid timestep %f\n",
-						config.timeStep);
+				die("Invalid timestep %s\n",
+						optarg);
 			break;
 		case 'T':
 			config.thermostatTemp = atof(optarg);
 			if (config.thermostatTemp < 0)
-				die("Invalid temperature %f\n",
-						config.thermostatTemp);
+				die("Invalid temperature %s\n",
+						optarg);
 			break;
 		case 'c':
 			config.thermostatTau = atof(optarg);
@@ -134,31 +134,31 @@ static void parseArguments(int argc, char **argv)
 		case 'b':
 			config.numBox = atoi(optarg);
 			if (config.numBox <= 0)
-				die("Invalid number of boxes %d\n",
-						config.numBox);
+				die("Invalid number of boxes %s\n",
+						optarg);
 			break;
 		case 's':
 			config.measureSamples = atol(optarg);
 			if (config.measureSamples < 0)
-				die("Invalid number of samples %d\n",
-						config.measureSamples);
+				die("Invalid number of samples %s\n",
+						optarg);
 			break;
 		case 'i':
 			config.measureInterval = atof(optarg);
 			if (config.measureInterval < 0)
-				die("Invalid interval time %f\n", 
-						config.measureInterval);
+				die("Invalid interval time %s\n", 
+						optarg);
 			break;
 		case 'w':
 			config.measureWait = atof(optarg);
 			if (config.measureWait < 0)
-				die("Invalid wait time %f\n", config.measureWait);
+				die("Invalid wait time %s\n", optarg);
 			break;
 		case 'j':
 			config.renderSteps = atol(optarg);
 			if (config.renderSteps < 0)
-				die("Invalid number of renderer steps %d\n",
-						config.renderSteps);
+				die("Invalid number of renderer steps %s\n",
+						optarg);
 			break;
 		case 'r':
 			config.render = true;
@@ -171,8 +171,8 @@ static void parseArguments(int argc, char **argv)
 		case 'v':
 			config.verbose = atoi(optarg);
 			if (config.verbose <= 0)
-				die("Verbose: invalid number of iterations %d\n",
-						config.verbose);
+				die("Verbose: invalid number of iterations %s\n",
+						optarg);
 			break;
 		case 'h':
 			printUsage();
