@@ -307,7 +307,7 @@ static void dumpEnergies(FILE *stream)
 	double V = potentialEnergy();
 
 	sanityCheck();
-	fprintf(stream, "%13f\t%13f\t%13f\t%13f\n", time, K+V, K, V);
+	fprintf(stream, "%13f\t%13f\t%13f\t%13f\n", sim_time, K+V, K, V);
 }
 
 /* Accumulate temperature measurements. */

@@ -33,7 +33,7 @@ static double randNorm(void);
 World world;
 Config config;
 
-double time = 0;
+double sim_time = 0;
 
 
 /* UNDER THE BONNET STUFF */
@@ -515,7 +515,7 @@ void stepWorld(void)
 	assert(sanityCheck());
 	thermostat();
 	assert(sanityCheck());
-	time += config.timeStep;
+	sim_time += config.timeStep;
 }
 
 void dumpStats()

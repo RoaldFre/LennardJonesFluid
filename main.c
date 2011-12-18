@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/time.h>
+#include <time.h>
 #include <sys/resource.h>
 #include "main.h"
 #include "vmath.h"
@@ -300,6 +300,8 @@ static bool stepSimulation(void) {
 int main(int argc, char **argv)
 {
 	bool keepGoing = true;
+
+	srand(time(NULL));
 
 	parseArguments(argc, argv);
 
