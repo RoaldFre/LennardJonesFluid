@@ -26,6 +26,8 @@ main: $(OBJECTS)
 	@echo "CC	$@"
 	@gcc -o $@ $(CFLAGS) -c $<
 
+tex:
+	cd latex; make
+
 clean:
 	rm -f *.o
-
