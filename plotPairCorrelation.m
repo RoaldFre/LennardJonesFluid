@@ -1,7 +1,18 @@
+function plotPairCorrelation(filename, caption)
+close all;
+
 data = load("/tmp/data.txt");
 
 t = data(:,1);
 g = data(:,2);
 
-plot(t, g);
+destdir   = 'latex/images';
+relImgDir = 'images';
+ylabrule  = '-1.5cm';
+xlab      = '$r$ (a.u.)';
+ylab      = '$g(r)$';
+width     = '800';
+height    = '600';
 
+plot(t, g);
+makeGraph(filename,caption,destdir,relImgDir,xlab,ylab,ylabrule,width,height);
