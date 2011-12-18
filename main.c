@@ -234,7 +234,8 @@ static void parseArguments(int argc, char **argv)
 		 * Otherwise you get a 'tail' between ws/2 and ws/sqrt(2), 
 		 * which is an artefact from the periodic boundary 
 		 * conditions in a cubic box! */
-	}
+	} else if (config.truncateLJ > worldSize / 2.0)
+		config.truncateLJ = worldSize / 2.0; /* same reason */
 
 	if (config.numBox == -1) {
 		config.numBox = worldSize / config.truncateLJ;
