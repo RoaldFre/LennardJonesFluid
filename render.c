@@ -6,6 +6,8 @@
 #include "render.h"
 #include "system.h"
 
+#define SPHERE_SLICES 8
+
 #define SCREEN_W 500
 #define SCREEN_H 500
 
@@ -174,7 +176,7 @@ int initRender(void)
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_NORMAL_ARRAY);
 
-	createSphere(4, &numVertices, &sphereVertex, &numIndices, &sphereIndex);
+	createSphere(SPHERE_SLICES, &numVertices, &sphereVertex, &numIndices, &sphereIndex);
 	glVertexPointer(3, GL_FLOAT, sizeof(Vertex3), sphereVertex);
 	glNormalPointer(   GL_FLOAT, sizeof(Vertex3), sphereVertex);
 

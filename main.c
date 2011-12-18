@@ -26,7 +26,7 @@ static int plot(void);
 #define DEF_LJ_TRUNCATION 		2.5
 #define DEF_MEASUREMENT_INTERVAL	0.2
 #define DEF_MEASUREMENT_WAIT 		10.0
-#define DEF_PARTICLES_PER_RENDER 	10000
+#define DEF_PARTICLES_PER_RENDER 	5000
 #define DEF_RENDER_RADIUS 		0.7
 
 static void printUsage(void)
