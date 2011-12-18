@@ -29,5 +29,10 @@ main: $(OBJECTS)
 tex:
 	cd latex; make
 
+plots:
+	./runEnergies.sh
+	./runPairCorrelation.sh
+	./runPressure.sh
+
 clean:
 	rm -f *.o

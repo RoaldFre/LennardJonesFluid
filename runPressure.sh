@@ -6,7 +6,7 @@ numParticles=300
 LJcutoff=2.5
 samples=50
 measWait=10
-measInterval=0.15
+measInterval=0.1
 timestep=0.005
 temperature=2
 

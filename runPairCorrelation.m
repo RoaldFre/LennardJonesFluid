@@ -1,32 +1,48 @@
 close all;
 
-numParticles = '300';
-density      = '0.8';
-LJcutoff     = '-1';
-samples      = '200';
-measWait     = '10';
-measInterval = '0.1';
-timestep     = '0.001';
-temperature  = '2';
+numParticles   = '500';
+LJcutoff       = '4';
+samples        = '400';
+samplesLowDens = '40000'; %luckily we have space partitioning...
+measWait       = '10';
+measInterval   = '0.05';
+timestep       = '0.01';
+temperature    = '2';
+coupling       = '3';
 
 
 hold on;
+lowDensity  = 0.001; %seperately
 minDensity  = 0.2;
 densityStep = 0.2;
 maxDensity  = 1.0;
-for density = minDensity : densityStep : maxDensity
-	system(['./main ',numParticles,' ',num2str(density),' -m c -r -l ',LJcutoff,' -s ',samples,' -w ',measWait,' -i ',measInterval,' -t ',timestep,' -T ',temperature']);
+densities = [minDensity : densityStep : maxDensity]
+ndens = length(densities);
 
+lightCol = 0.7; %color of lightest curve
+
+
+%low density seperately, because it needs more samples
+system(['./main ',numParticles,' ',num2str(lowDensity),' -m c -r -l ',LJcutoff,' -s ',samplesLowDens,' -w ',measWait,' -i ',measInterval,' -t ',timestep,' -T ',temperature,' -c ',coupling]);
+data = load('/tmp/data.txt');
+t = data(:,1);
+g = data(:,2);
+plot(t, g, 'Color', lightCol * [1, 1, 1], [';',num2str(lowDensity),';']);
+
+%other densities
+for i = 1 : ndens
+	density = densities(i);
+	system(['./main ',numParticles,' ',num2str(density),' -m c -r -l ',LJcutoff,' -s ',samples,' -w ',measWait,' -i ',measInterval,' -t ',timestep,' -T ',temperature,' -c ',coupling]);
 	data = load('/tmp/data.txt');
 	t = data(:,1);
 	g = data(:,2);
-	plot(t, g, 'Color', 0.3 + 0.7 * (maxDensity - [density, density, density]) / maxDensity, [';',num2str(density),';']);
+	plot(t, g, 'Color', lightCol * [1,1,1] - lightCol * i / ndens, [';',num2str(density),';']);
 	%TODO: get a \rho in there
 endfor
 
 
 filename='pairCorr'
-info=['$N$ = ',numParticles,', $\\Delta t$ = ',timestep,', $\\tau$ = $10^3 \\Delta t$, $T$ = ',temperature,',  $\\tau_\\mathrm{relax}$ = ',measWait,', $\\tau_\\mathrm{sample}$ = ',measInterval,', $N_\\mathrm{samples}$ = ',samples];
+info=['$N$ = ',numParticles,', $\\Delta t$ = ',timestep,', $\\tau$ = ',coupling,', $T$ = ',temperature,',  $\\tau_\\mathrm{relax}$ = ',measWait,', $\\tau_\\mathrm{sample}$ = ',measInterval,', $N_\\mathrm{samples}$ = ',samples,' (',samplesLowDens,' for the curve at the lowest density)'];
 caption=['Pair correlation function for various densities. Parameters: ',info,'.'];
 
 
@@ -38,7 +54,7 @@ ylab      = '$g(r)$';
 width     = '800';
 height    = '600';
 
-axis([0,3,0,1], 'autoy');
+axis([0,4,0,1], 'autoy');
 makeGraph(filename,caption,destdir,relImgDir,xlab,ylab,ylabrule,width,height);
 
 hold off;
