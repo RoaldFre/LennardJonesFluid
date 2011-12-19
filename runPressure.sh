@@ -16,7 +16,7 @@ echo -n "" > $file
 
 for density in `seq 0.01 0.03 1`
 do
-	./main $numParticles $density -m P -r -l $LJcutoff -s $samples -w $measWait -i $measInterval -t $timestep -T $temperature
+	./main $numParticles $density -m P -l $LJcutoff -s $samples -w $measWait -i $measInterval -t $timestep -T $temperature
 
 	echo -n -e "$density\t" >> $file
 	cat /tmp/data.txt >> $file
@@ -25,7 +25,7 @@ done
 
 
 
-info="\$N\$ = $numParticles, \$\Delta t\$ = $timestep, \$\\\\tau\$ = \$10^3 \Delta t\$, \$T\$ = $temperature, \$\\\\tau_\\\\mathrm{relax}\$ = $measWait, \$\\\\tau_\\\\mathrm{sample}\$ = $measInterval, \$N_\\\\mathrm{samples}\$ = $samples"
+info="\$N\$ = $numParticles, \$\Delta t\$ = $timestep, \$\\tau\$ = \$10^3 \Delta t\$, \$T\$ = $temperature, \$\\tau_\\mathrm{relax}\$ = $measWait, \$\\tau_\\mathrm{sample}\$ = $measInterval, \$N_\\mathrm{samples}\$ = $samples"
 caption="Pressure in function of density. Parameters: $info."
 filename="pressure"
 octave -q --eval "plotPressure('$filename', '$caption', $temperature)"

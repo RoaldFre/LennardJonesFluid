@@ -13,8 +13,8 @@ relImgDir = 'images';
 ylabrule  = '-1.5cm';
 xlab      = 'time (a.u.)';
 ylab      = 'Energy (a.u.)';
-width     = '800';
-height    = '600';
+width     = '1000';
+height    = '800';
 
 
 hold on;

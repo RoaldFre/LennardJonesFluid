@@ -19,8 +19,8 @@ relImgDir = 'images';
 ylabrule  = '-1.5cm';
 xlab      = '$\rho$ (a.u.)';
 ylab      = '$P(\rho)$ (a.u.)';
-width     = '800';
-height    = '800';
+width     = '1000';
+height    = '1000';
 
 axis([0, 1.0*max(rho), 0, 1.0*max([P;Pig])]);
 
