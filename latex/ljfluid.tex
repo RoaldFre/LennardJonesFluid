@@ -6,6 +6,7 @@
 \usepackage{placeins}
 \usepackage{epstopdf}
 \usepackage{amsfonts, amsmath, amsthm}
+\usepackage{tabularx}
 \usepackage[font=small,format=plain,labelfont=bf,up,textfont=up]{caption}
 
 %Loosen up on figure placement restrictions
@@ -15,8 +16,31 @@
 \renewcommand{\floatpagefraction}{0.8} 
 
 \begin{document}
+\author{Roald Frederickx}
+\title{Lennard-Jones fluid}
+\date{}
+\maketitle
 
-\section{Energy}
+\section{Explanation of parameters}
+\begin{center}
+%\begin{tabular}{c|p}
+\begin{tabularx}{\linewidth}{c | X}
+$N$&	The number of particles.\\[5pt]
+$\rho$&	The volume density of the particles.\\[5pt]
+$\Delta t$&	The time step.\\[5pt]
+$T_0$&		The initial temperature. Initial velocity components are sampled from a gaussian distribution with variance $T_0$.\\[5pt]
+$T$&		The temperature of the Berendsen thermostat.\\[5pt]
+$\tau$&		The coupling time scale of the Berendsen thermostat. At each timestep, velocities will be rescaled by a factor $\lambda = \sqrt{1 + \Delta t/\tau\left(T_0/T_{\mathrm{kin}} - 1\right)}.$\\[5pt]
+$\tau_{\mathrm{sample}}$&	Time between subsequent measurement samples of the system.\\[5pt]
+$N_{\mathrm{samples}}$&		Total number of samples of the system (ie, the system is sampled for a total time ($\tau_\mathrm{sample} \cdot N_\mathrm{samples}$).\\
+\end{tabularx}
+\end{center}
+
+\section{Energy plots}
+Plots of the energy are shown for (1) an isolated system (canonical ensemble, no thermal coupling), (2) the same system connected to a thermal bath at fixed $T$ where the initial system has velocities sampled for an initial temperature $T_0 = T$ and (3) the system in contact with a thermal bath at temperature $T$, but the initial system starts with a very low temperature $T_0 \ll T$.
+
+Each of these three plots is shown for varying density.
+
 \input{images/energies-uncoupled-0p2}
 \input{images/energies-0p2}
 \input{images/energies-T0-0p2}
@@ -33,12 +57,14 @@
 \input{images/energies-0p8}
 \input{images/energies-T0-0p8}
 
-\FloatBarrier
-\section{Pair correlation}
-\input{images/pairCorr}
 
 \FloatBarrier
-\section{Pressure}
+\section{Pair correlation plot}
+\input{images/pairCorr}
+
+
+\FloatBarrier
+\section{Pressure plot}
 \input{images/pressure}
 
 \end{document}
