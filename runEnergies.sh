@@ -27,7 +27,7 @@ do
 	densityNoPoint=`echo $density | tr . p`
 	filename="energies-uncoupled-$densityNoPoint"
 	info="\$N\$ = $numParticles, \$\\rho\$ = $density, \$\Delta t\$ = $timestep, \$T_0\$ = $temperature, \$\\tau_\\mathrm{sample}\$ = $measInterval, \$N_\\mathrm{samples}\$ = $samples"
-	caption="Potential, kinetic and total energy in the canonical ensemble (no coupling to thermal bath). Initial velocities sampled according to desired temperature. Parameters: $info."
+	caption="Potential, kinetic and total energy in the microcanonical ensemble (no coupling to thermal bath). Initial velocities sampled according to desired temperature. Parameters: $info."
 	octave -q --eval "plotEnergies('$filename', '$caption')"
 
 
