@@ -39,13 +39,13 @@ typedef struct config
 	long   measureSamples;  /* Total number of samples to accumulate */
 	double measureInterval; /* Time between samples */
 	double measureWait;     /* Time to wait before starting measurement */
-	long   renderSteps;     /* Physics steps between rendering frames. */
 	double timeStep;
 	double truncateLJ;      /* Radius at which L-J potential gets truncated. */
 	double initialTemp;     /* Initial temperature. */
 	double thermostatTemp;  /* Thermostat temperature. */
 	double thermostatTau;   /* Thermostat relaxation time. */
-	double radius; /* The radius of the particles to render */
+	double radius;          /* The radius of the particles to render */
+	double framerate;       /* The desired framerate when rendering. */
 } Config;
 
 bool allocWorld(void);
