@@ -309,7 +309,6 @@ static bool stepSimulation(Timer *renderTimer) {
 	static long stepsSinceRender = 0;
 	static int  stepsSinceVerbose = 0;
 
-
 	stepWorld();
 
 	if (config.verbose > 0) {
