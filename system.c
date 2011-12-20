@@ -186,8 +186,8 @@ bool allocWorld()
  * If that is not possible (because the world is too small), the particles 
  * are placed on a uniform lattice filling the entire world.
  *
- * Initial velocities are sampled from a normal distribution with variance 
- * 'config.thermostatTemp'. Velocities are then shifted to set the total 
+ * Initial velocities are sampled from a normal distribution with variance  
+ * 'config.initialTemp'. Velocities are then shifted to set the total 
  * momentum to zero. */
 void fillWorld()
 {
