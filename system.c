@@ -9,7 +9,6 @@
 
 #define NOT_USED(x) ( (void)(x) )
 
-static void collideWalls(int ix, int iy, int iz);
 static void reboxParticles(void);
 static Box  *boxFromParticle(const Particle *p);
 static Box  *boxFromIndex(int nx, int ny, int nz);
@@ -442,52 +441,6 @@ static void lennardJonesForce(Particle *p1, Particle *p2)
 	scale(&drVec, -24*(2/dr14 - 1/dr8), &Fi);
 	add(&p1->acc, &Fi, &p1->acc);
 	sub(&p2->acc, &Fi, &p2->acc);
-}
-
-
-static void collideWalls(int ix, int iy, int iz)
-{
-	int i;
-	int nb = config.numBox;
-	Particle *p;
-	Box *b = boxFromIndex(ix, iy, iz);
-	double worldSize = config.boxSize * config.numBox;
-
-	p = b->p;
-	for (i = 0; i < b->n; i++)
-	{
-		if (ix == 0 && p->pos.x < 0)
-		{
-			p->vel.x = -p->vel.x;
-			p->pos.x = -p->pos.x;
-		} else if (ix == nb && p->pos.x > worldSize)
-		{
-			p->vel.x = -p->vel.x;
-			p->pos.x = worldSize - (p->pos.x - worldSize);
-		}
-
-		if (iy == 0 && p->pos.y < 0)
-		{
-			p->vel.y = -p->vel.y;
-			p->pos.y = -p->pos.y;
-		} else if (iy == nb && p->pos.y > worldSize)
-		{
-			p->vel.y = -p->vel.y;
-			p->pos.y = worldSize - (p->pos.y - worldSize);
-		}
-
-		if (iz == 0 && p->pos.z < 0)
-		{
-			p->vel.z = -p->vel.z;
-			p->pos.z = -p->pos.z;
-		} else if (iz == nb && p->pos.z > worldSize)
-		{
-			p->vel.z = -p->vel.z;
-			p->pos.z = worldSize - (p->pos.z - worldSize);
-		}
-	
-		p = p->next;
-	}
 }
 
 static void thermostat()

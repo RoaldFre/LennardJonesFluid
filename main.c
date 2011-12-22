@@ -16,9 +16,6 @@
 #define DATA_FILE_NAME "/tmp/data.txt"
 
 static void parseArguments(int argc, char **argv);
-static void plotHeader(FILE *stream);
-static void plotFooter(FILE *stream);
-static int plot(void);
 
 /* Defaults */
 #define DEF_TIMESTEP 			0.001
@@ -306,7 +303,6 @@ static bool tickTimer(Timer *timer)
 /* Advance the simulation by one time step. Render and/or dump statistics 
  * if neccesary. Return false if the user wants to quit. */
 static bool stepSimulation(Timer *renderTimer) {
-	static long stepsSinceRender = 0;
 	static int  stepsSinceVerbose = 0;
 
 	stepWorld();
@@ -358,7 +354,6 @@ int main(int argc, char **argv)
 		/* Perform the measurements */
 		printf("\nStarting measurement.\n");
 		FILE *outstream = fopen(DATA_FILE_NAME, "w");
-		//plotHeader(outstream);
 		double intervalTime = 0;
 		for (long sample = 0; keepGoing && sample < config.measureSamples; sample++) {
 			while (keepGoing && intervalTime <= config.measureInterval) {
@@ -394,28 +389,3 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-static void plotHeader(FILE *stream)
-{
-	fprintf(stream, "data = ");
-}
-static void plotFooter(FILE *stream)
-{
-	fprintf(stream, "\n");
-	fprintf(stream, "plot(data(:,1), data(:,2))\n");
-}
-static int plot()
-{
-#if 0
-	if (fork() > 0)
-		return; /* The parent does nothing  */
-
-	/* We are the child */
-	setsid(); /* Detatch from terminal */
-	/* Close inherited file descriptors */
-	fclose(stdin);
-	fclose(stdout);
-	fclose(stderr);
-#endif
-
-	return system("octave -q --persist "DATA_FILE_NAME);
-}

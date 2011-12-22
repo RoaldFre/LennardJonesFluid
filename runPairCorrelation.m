@@ -23,7 +23,7 @@ lightCol = 0.7; %color of lightest curve
 
 
 %low density seperately, because it needs more samples
-system(['./main ',numParticles,' ',num2str(lowDensity),' -j 200 -m c -l ',LJcutoff,' -s ',samplesLowDens,' -w ',measWait,' -i ',measInterval,' -t ',timestep,' -T ',temperature,' -c ',coupling]);
+system(['./main ',numParticles,' ',num2str(lowDensity),' -m c -l ',LJcutoff,' -s ',samplesLowDens,' -w ',measWait,' -i ',measInterval,' -t ',timestep,' -T ',temperature,' -c ',coupling]);
 data = load('/tmp/data.txt');
 t = data(:,1);
 g = data(:,2);
